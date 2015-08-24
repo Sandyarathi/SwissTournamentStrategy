@@ -1,19 +1,26 @@
 #!/usr/bin/env python
-# 
+# @author = 'sandyarathi Das'
+# created on = '08-20-2015'
 # tournament.py -- implementation of a Swiss-system tournament
 #
+
 
 import psycopg2
 
 
 def connect():
-    """Connect to the PostgreSQL database.  Returns a database connection."""
-    return psycopg2.connect("dbname=tournament")
+    """Connect to the PostgreSQL database.  Returns a database connection and cursor.
+        In case of any error, prints an error message"""
+    try:
+        dbConnection = psycopg2.connect("dbname=tournament")
+        cursor=dbConnection.cursor()
+        return dbConnection, cursor
+    except:
+        print("Error establishing database connection.")
 
 def execute_query(query,variables=(), fetch=False, commit=False):
     """Helper function to execute a required query by establishing the database connection"""
-    dbConnection=connect()
-    cursor=dbConnection.cursor()
+    dbConnection,cursor=connect()
     if len(variables)==0:
         cursor.execute(query)
     else:
@@ -44,7 +51,7 @@ def deletePlayers():
 def countPlayers():
     """Returns the number of players currently registered."""
     query="SELECT count(*) as numOfPlayers FROM registered_players;"
-    result=execute_query(query,fetch=True)
+    result=execute_query(query,fetch = True)
     count= result[0][0]
     return count
 
@@ -59,7 +66,7 @@ def registerPlayer(name):
       name: the player's full name (need not be unique).
     """
     query = "INSERT INTO registered_players (player_name) VALUES (%s)"
-    execute_query(query,variables=(name,),commit=True)
+    execute_query(query,variables=(name,),commit = True)
 
 
 
@@ -81,11 +88,11 @@ def playerStandings():
         The rows fetched from the player_match_record view is populated into 
         a list. 
     """
-    query="SELECT * FROM player_match_record ORDER BY wins DESC;"
-    queryResult=execute_query(query,fetch=True)
-    list_of_playerRecords=[]
+    query = "SELECT * FROM player_match_record;"
+    queryResult = execute_query(query,fetch = True)
+    list_of_playerRecords = []
     for row in queryResult:
-        listTuple=(row[0],row[1],row[3],row[2])
+        listTuple = (row[0],row[1],row[3],row[2])
         list_of_playerRecords.append(listTuple)
     return list_of_playerRecords
 
@@ -102,12 +109,10 @@ def reportMatch(winner, loser):
             The queries insert records of each match played along with the winner and loser
             and also updates the registered players table wins column of winner of the match.
     """
-    query1="INSERT INTO matches_info(player_id,match_result) VALUES (%s,%s)"
-    query2="INSERT INTO matches_info(player_id,match_result) VALUES (%s,%s)"
-    query3="UPDATE registered_players SET wins=wins+1 where player_id=(%s)"
-    execute_query(query1,variables=(winner,1),commit=True)
-    execute_query(query2,variables=(loser,0),commit=True)
-    execute_query(query3,variables=(winner,),commit=True)
+    query1="INSERT INTO matches_info(winner_id,loser_id) VALUES (%s,%s)"
+    query2="UPDATE registered_players SET wins = wins + 1 where player_id = (%s)"
+    execute_query(query1,variables = (winner,loser),commit = True)
+    execute_query(query2,variables = (winner,),commit = True)
  
 def swissPairings():
     """Returns a list of pairs of players for the next round of a match.
@@ -130,21 +135,24 @@ def swissPairings():
         The records from the player_match_record is fetched in the decending order of wins and for each adjacent rows
         the pairing list is appended with a new pair.
     """
-    query="SELECT * FROM player_match_record ORDER BY wins DESC;"
-    queryResult=execute_query(query,fetch=True)
-    pairs=[]
-    count=0
-    for row in queryResult:
-        if(count==0):
-            id=row[0]
-            name=row[1]
-        else:
-            tuple=(id,name,row[0],row[1])
-            pairs.append(tuple)
-        if(count==1):
-            count=0
-        else:
-            count=count+1
-    return pairs
+    noOfPlayers = countPlayers()
+    if(noOfPlayers%2 == 0):
+        listOfRecords = playerStandings()
+        pairs = []
+        count = 0
+        for row in listOfRecords:
+            if(count == 0):
+                id = row[0]
+                name = row[1]
+            else:
+                tuple = (id,name,row[0],row[1])
+                pairs.append(tuple)
+            if(count == 1):
+                count = 0
+            else:
+                count = count + 1
+        return pairs
+    else:
+        print("There are odd number of players.")
 
 
